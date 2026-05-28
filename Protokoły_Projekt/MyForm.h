@@ -8,6 +8,7 @@ namespace Protoko造Projekt {
 	using namespace System::Windows::Forms;
 	using namespace System::Data;
 	using namespace System::Drawing;
+	using namespace System::Threading;
 
 	/// <summary>
 	/// Podsumowanie informacji o MyForm
@@ -41,6 +42,9 @@ namespace Protoko造Projekt {
 	private: System::Windows::Forms::TextBox^ recivedTextBox;
 	private: System::Windows::Forms::Button^ disconnectButton;
 	private: System::Windows::Forms::Button^ button1;
+	private: System::Windows::Forms::ComboBox^ portHamegComboBox;
+	private: System::Windows::Forms::Button^ hamegConnectButton;
+	private: System::Windows::Forms::Button^ hamegReadButton;
 
 	protected:
 
@@ -78,6 +82,9 @@ namespace Protoko造Projekt {
 			this->recivedTextBox = (gcnew System::Windows::Forms::TextBox());
 			this->disconnectButton = (gcnew System::Windows::Forms::Button());
 			this->button1 = (gcnew System::Windows::Forms::Button());
+			this->portHamegComboBox = (gcnew System::Windows::Forms::ComboBox());
+			this->hamegConnectButton = (gcnew System::Windows::Forms::Button());
+			this->hamegReadButton = (gcnew System::Windows::Forms::Button());
 			this->SuspendLayout();
 			// 
 			// sendButton
@@ -151,11 +158,43 @@ namespace Protoko造Projekt {
 			this->button1->UseVisualStyleBackColor = true;
 			this->button1->Click += gcnew System::EventHandler(this, &MyForm::outputOnOff_Click);
 			// 
+			// portHamegComboBox
+			// 
+			this->portHamegComboBox->FormattingEnabled = true;
+			this->portHamegComboBox->Location = System::Drawing::Point(823, 111);
+			this->portHamegComboBox->Name = L"portHamegComboBox";
+			this->portHamegComboBox->Size = System::Drawing::Size(156, 24);
+			this->portHamegComboBox->TabIndex = 7;
+			this->portHamegComboBox->SelectedIndexChanged += gcnew System::EventHandler(this, &MyForm::portHamegComboBox_SelectedIndexChanged);
+			// 
+			// hamegConnectButton
+			// 
+			this->hamegConnectButton->Location = System::Drawing::Point(1008, 112);
+			this->hamegConnectButton->Name = L"hamegConnectButton";
+			this->hamegConnectButton->Size = System::Drawing::Size(109, 23);
+			this->hamegConnectButton->TabIndex = 8;
+			this->hamegConnectButton->Text = L"Connect";
+			this->hamegConnectButton->UseVisualStyleBackColor = true;
+			this->hamegConnectButton->Click += gcnew System::EventHandler(this, &MyForm::hamegConnectButton_Click);
+			// 
+			// hamegReadButton
+			// 
+			this->hamegReadButton->Location = System::Drawing::Point(1008, 182);
+			this->hamegReadButton->Name = L"hamegReadButton";
+			this->hamegReadButton->Size = System::Drawing::Size(109, 23);
+			this->hamegReadButton->TabIndex = 9;
+			this->hamegReadButton->Text = L"Read";
+			this->hamegReadButton->UseVisualStyleBackColor = true;
+			this->hamegReadButton->Click += gcnew System::EventHandler(this, &MyForm::hamegReadButton_Click);
+			// 
 			// MyForm
 			// 
 			this->AutoScaleDimensions = System::Drawing::SizeF(8, 16);
 			this->AutoScaleMode = System::Windows::Forms::AutoScaleMode::Font;
 			this->ClientSize = System::Drawing::Size(1605, 817);
+			this->Controls->Add(this->hamegReadButton);
+			this->Controls->Add(this->hamegConnectButton);
+			this->Controls->Add(this->portHamegComboBox);
 			this->Controls->Add(this->button1);
 			this->Controls->Add(this->disconnectButton);
 			this->Controls->Add(this->recivedTextBox);
@@ -172,18 +211,24 @@ namespace Protoko造Projekt {
 
 		}
 		private: System::IO::Ports::SerialPort^ serialPort;
+		private: System::IO::Ports::SerialPort^ hamegoPort;
 		private: double voltage = 0.1;
 		private:  bool isOn = false;
 #pragma endregion
 
 	private: System::Void MyForm_Load(System::Object^ sender, System::EventArgs^ e) {
 		portComboBox->Items->Clear();
+		portHamegComboBox->Items->Clear();
 		array<String^>^ ports = System::IO::Ports::SerialPort::GetPortNames();
 		for each(String ^ port in ports) {
 			portComboBox->Items->Add(port);
+			portHamegComboBox->Items->Add(port);
 		}
 		if (portComboBox->Items->Count > 0)
 			portComboBox->SelectedIndex = 0;
+
+		if (portHamegComboBox->Items->Count > 0)
+			portHamegComboBox->SelectedIndex = 0;
 	}
 	private: System::Void connectButton_Click(System::Object^ sender, System::EventArgs^ e) {
 
@@ -305,6 +350,68 @@ private: System::Void outputOnOff_Click(System::Object^ sender, System::EventArg
 		MessageBox::Show("Errot: " + ex->Message);
 	}
 }
+private: System::Void portHamegComboBox_SelectedIndexChanged(System::Object^ sender, System::EventArgs^ e) {
+	
+
+}
+private: System::Void hamegConnectButton_Click(System::Object^ sender, System::EventArgs^ e) {
+	try {
+		hamegoPort = gcnew System::IO::Ports::SerialPort();
+		hamegoPort->PortName = portHamegComboBox->SelectedItem->ToString();
+
+		//Konfiguracje
+		hamegoPort->BaudRate = 9600;
+		hamegoPort->DataBits = 8;
+		hamegoPort->Parity = System::IO::Ports::Parity::None;
+		hamegoPort->StopBits = System::IO::Ports::StopBits::One;
+
+		hamegoPort->Open();
+		hamegoPort->DtrEnable = true;
+		hamegoPort->RtsEnable = true;
+
+		
+		Thread::Sleep(50);
+		hamegoPort->Write("0270\r"); // IDC autorange - tryb pomiaru pr鉅u
+		Thread::Sleep(50);
+		hamegoPort->Write("0161\r"); // pierwsze single trigger
+		hamegoPort->DataReceived += gcnew System::IO::Ports::SerialDataReceivedEventHandler(
+			this, &MyForm::hamegoPort_DataReceived);
+		MessageBox::Show("Connected to " + hamegoPort->PortName);
+
+		/*
+		connectButton->Enabled = false;
+		disconnectButton->Enabled = true;
+		*/
+	}
+	catch (Exception^ ex) {
+		MessageBox::Show("Error: " + ex->Message);
+	}
+
+}
+private: System::Void hamegoPort_DataReceived(System::Object^ sender,
+	System::IO::Ports::SerialDataReceivedEventArgs^ e) {
+	String^ data = hamegoPort->ReadExisting();
+	this->Invoke(gcnew Action<String^>(this, &MyForm::UpdateHamegTextBox), data);
+}
+
+private: System::Void UpdateHamegTextBox(String^ data) {
+	recivedTextBox->AppendText("Hameg: " + data + Environment::NewLine);
+}
+
+private: System::Void hamegReadButton_Click(System::Object^ sender, System::EventArgs^ e) {
+
+	if (hamegoPort == nullptr || !hamegoPort->IsOpen) {
+		MessageBox::Show("Hameg not connected");
+		return;
+	}
+	try {
+		hamegoPort->Write("0161\r"); // single trigger patrz dokumentacja hamega
+	}
+	catch (Exception^ ex) {
+		MessageBox::Show("Error: " + ex->Message);
+	}
+}
 };
+
 
 }
